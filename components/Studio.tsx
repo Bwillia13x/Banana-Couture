@@ -47,24 +47,24 @@ const MODEL_PROMPTS: Record<ModelType, string> = {
 
 const INSPIRATION_STARTERS = [
     {
-        title: "Avant-Garde Evening",
-        prompt: "A sculptural evening gown made of bioluminescent organza, fluid architectural shapes, deep midnight blue with glowing veins",
-        icon: "✨"
+        title: "Vintage Polo",
+        prompt: "1960s style menswear sweater polo, textured waffle knit, tipped collar, sage green and cream, retro aesthetic",
+        icon: "👕"
     },
     {
-        title: "Techwear Utility",
-        prompt: "Modular techwear jacket with magnetic fidlock buckles, waterproof matte black fabric, hidden pockets, asymmetrical zipper",
+        title: "Raw Denim",
+        prompt: "Premium dark indigo selvedge jeans, straight leg cut, contrast stitching, rigid raw denim texture, cuffed hem",
+        icon: "👖"
+    },
+    {
+        title: "Floral Sundress",
+        prompt: "Lightweight floral summer dress, linen blend, small daisy print on sunshine yellow, tiered skirt, breezy fit",
+        icon: "👗"
+    },
+    {
+        title: "Classic Trench",
+        prompt: "Timeless beige trench coat, double breasted, storm flap, belted waist, water resistant gabardine fabric",
         icon: "🧥"
-    },
-    {
-        title: "Sustainable Denim",
-        prompt: "Upcycled patchwork denim jacket featuring sashiko stitching, vintage wash, distressed edges, raw hems details",
-        icon: "🧵"
-    },
-    {
-        title: "Neo-Tokyo Street",
-        prompt: "Futuristic streetwear hoodie, holographic fabric accents, oversized silhouette, japanese typography prints, neon green details",
-        icon: "🏙️"
     }
 ];
 
@@ -99,7 +99,7 @@ const PHYSICS_HUD = ({ physics }: { physics: FabricPhysics }) => (
 
 export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialDraft, readOnly = false, activeChallenge }) => {
   // --- State ---
-  const DEFAULT_PROMPT = 'Avant-garde neon trench coat with fiber optic piping, reflective vinyl panels, storm collar, articulated sleeves, night runway lighting';
+  const DEFAULT_PROMPT = 'Classic mens sweater polo, 1960s Mad Men style, textured knit fabric, charcoal grey with white piping, vintage studio lighting';
   const [prompt, setPrompt] = useState(activeChallenge ? activeChallenge.promptHint : DEFAULT_PROMPT);
   const [selectedModel, setSelectedModel] = useState<ModelType>('Ghost');
   
@@ -1696,9 +1696,9 @@ export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialD
                                 </p>
                                 <div className="flex flex-wrap gap-2">
                                     {[
-                                        'Victorian steampunk coat with brass buckles, aubergine velvet, smoggy London alley',
-                                        'Bioluminescent coral gown, translucent organza, tidal shimmer lighting',
-                                        'Futuristic motocross set, matte black kevlar, safety orange piping, foggy tunnel'
+                                        'Cozy oversized cable knit sweater, cream wool, soft texture',
+                                        'Tailored linen blazer in navy blue, unstructured fit, summer smart casual',
+                                        'Black leather moto jacket, silver hardware, asymmetrical zipper, classic fit'
                                     ].map((sample) => (
                                         <button
                                             key={sample}
