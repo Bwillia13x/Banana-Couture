@@ -1,0 +1,9 @@
+{
+  "name": "V3 Banana Couture",
+  "description": "A Generative AI fashion design platform powered by Gemini 3.0 Pro. Design clothing via prompts, generate engineering CAD sketches, and sell in a global marketplace.",
+  "requestFramePermissions": [
+    "microphone",
+    "geolocation",
+    "camera"
+  ]
+}

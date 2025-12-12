@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Banana Couture - AI Fashion Studio</title>
+  <meta name="description"
+    content="Design runway-ready fashion concepts, generate production files, and launch your label in minutes with AI." />
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Banana Couture - AI Fashion Studio" />
+  <meta property="og:description"
+    content="Design it. List it. Wear it. Generate runway-ready concepts with Gemini AI." />
+  <meta property="og:image"
+    content="https://images.unsplash.com/photo-1539109136881-3be0616acf4b?w=1200&h=630&fit=crop" />
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Banana Couture - AI Fashion Studio" />
+  <meta name="twitter:description"
+    content="Design it. List it. Wear it. Generate runway-ready concepts with Gemini AI." />
+  <meta name="twitter:image"
+    content="https://images.unsplash.com/photo-1539109136881-3be0616acf4b?w=1200&h=630&fit=crop" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          spacing: {
+            'safe-top': 'env(safe-area-inset-top)',
+            'safe-bottom': 'env(safe-area-inset-bottom)',
+            'safe-left': 'env(safe-area-inset-left)',
+            'safe-right': 'env(safe-area-inset-right)',
+          },
+          colors: {
+            nc: {
+              bg: 'var(--nc-bg)',
+              'bg-elevated': 'var(--nc-bg-elevated)',
+              'bg-soft': 'var(--nc-bg-soft)',
+              ink: 'var(--nc-ink)',
+              'ink-soft': 'var(--nc-ink-soft)',
+              'ink-subtle': 'var(--nc-ink-subtle)',
+              accent: 'var(--nc-accent)',
+              'accent-soft': 'var(--nc-accent-soft)',
+              'accent-strong': 'var(--nc-accent-strong)',
+              gold: 'var(--nc-gold)',
+              emerald: 'var(--nc-emerald)',
+              rose: 'var(--nc-rose)',
+              'border-subtle': 'var(--nc-border-subtle)',
+              'border-strong': 'var(--nc-border-strong)',
+            }
+          },
+          fontFamily: {
+            display: ['Libre Baskerville', 'serif'],
+            sans: ['Inter', 'sans-serif'],
+          },
+          borderRadius: {
+            'nc-sm': '0.5rem',
+            'nc-lg': '1.25rem',
+            'nc-xl': '1.75rem',
+            'pill': '9999px',
+          },
+          boxShadow: {
+            'nc-soft': '0 14px 40px rgba(0,0,0,0.07)',
+            'nc-card': '0 18px 60px rgba(0,0,0,0.10)',
+            'nc-elevated': '0 25px 80px rgba(0,0,0,0.15)',
+          }
+        }
+      }
+    }
+  </script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;700&family=Libre+Baskerville:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400;1,600&display=swap"
+    rel="stylesheet">
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react-markdown": "https://aistudiocdn.com/react-markdown@^10.1.0",
+    "vite": "https://aistudiocdn.com/vite@^7.2.7",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.2",
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "@testing-library/jest-dom": "https://aistudiocdn.com/@testing-library/jest-dom@^6.9.1",
+    "@testing-library/react": "https://aistudiocdn.com/@testing-library/react@^16.3.0",
+    "vitest/": "https://aistudiocdn.com/vitest@^4.0.15/",
+    "vitest": "https://aistudiocdn.com/vitest@^4.0.15",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0"
+  }
+}
+</script>
+
+</head>
+
+<body>
+  <div class="noise-overlay"></div>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
+</html>
