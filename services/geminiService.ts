@@ -336,9 +336,6 @@ export const generateFabricTexture = async (materialName: string): Promise<strin
 };
 
 export const generateRunwayVideo = async (prompt: string, imageBase64: string): Promise<string> => {
-  // Ensure we have a Paid API Key (Veo requirement)
-  await ensurePaidApiKey();
-  
   // Re-initialize client to ensure we pick up the latest key context
   const ai = getAiClient();
   
@@ -843,8 +840,6 @@ export const analyzeMultimodalInput = async (
   context: string
 ): Promise<string> => {
   return safeCall(async () => {
-    await ensurePaidApiKey();
-
     const base64Data = await blobToBase64(blob);
     const mimeType = type === 'video' ? 'video/webm' : 'audio/webm';
     

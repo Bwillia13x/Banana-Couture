@@ -11,7 +11,6 @@ import { VideoRecorder } from './components/VideoRecorder';
 import { GuidedTour } from './components/GuidedTour';
 import { AboutModal } from './components/AboutModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { SplashScreen } from './components/SplashScreen';
 import {
   AppView,
   Product,
@@ -290,7 +289,6 @@ const LiveTicker = () => {
 };
 
 export const App: React.FC = () => {
-  const [showSplash, setShowSplash] = useState(true);
   const [currentView, setCurrentViewInternal] = useState<AppView>(AppView.HOME);
   const [products, setProducts] = useState<Product[]>(MOCK_PRODUCTS);
   const [apiKeyMissing, setApiKeyMissing] = useState(!hasGeminiApiKey());
@@ -711,9 +709,6 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen w-full flex flex-col font-sans overflow-hidden bg-nc-bg text-nc-ink transition-colors duration-500 animate-fade-in">
-      {/* Splash Screen */}
-      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
-
       {/* Confetti Overlay */}
       <Confetti active={showConfetti} onComplete={() => setShowConfetti(false)} />
 

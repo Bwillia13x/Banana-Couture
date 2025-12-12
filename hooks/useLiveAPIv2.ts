@@ -290,6 +290,9 @@ export const useLiveAPIv2 = ({ onToolCall, onAuraInsight, onTranscriptUpdate }: 
   const nextStartTimeRef = useRef<number>(0);
   const activeSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   
+  // Transcription buffer
+  const currentTranscriptRef = useRef<string>("");
+
   // Gemini Session
   const sessionRef = useRef<any>(null);
   
@@ -412,7 +415,11 @@ export const useLiveAPIv2 = ({ onToolCall, onAuraInsight, onTranscriptUpdate }: 
       const session = await ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-09-2025',
         config: {
-          responseModalities: [Modality.AUDIO, Modality.TEXT],
+          responseModalities: [Modality.AUDIO], // MUST contain exactly one modality: AUDIO
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
+          },
+          outputAudioTranscription: {}, // Enable transcription for model output
           tools: [{ functionDeclarations: aura2ToolsDef }],
           systemInstruction: AURA_2_SYSTEM_INSTRUCTION,
         },
@@ -433,55 +440,39 @@ export const useLiveAPIv2 = ({ onToolCall, onAuraInsight, onTranscriptUpdate }: 
           
           onmessage: async (msg: LiveServerMessage) => {
             // Handle Audio Output
-            const audioParts = msg.serverContent?.modelTurn?.parts?.filter(
-              (p: any) => p.inlineData?.mimeType?.startsWith('audio/')
-            );
+            const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
             
-            if (audioParts && audioParts.length > 0 && outputAudioContextRef.current) {
+            if (audioData && outputAudioContextRef.current) {
               setIsSpeaking(true);
               setIsListening(false);
               
-              for (const part of audioParts) {
-                const audioData = part.inlineData?.data;
-                if (audioData) {
-                  const buffer = await decodeAudioData(audioData, outputAudioContextRef.current);
-                  
-                  const source = outputAudioContextRef.current.createBufferSource();
-                  source.buffer = buffer;
-                  source.connect(outputAudioContextRef.current.destination);
-                  
-                  const now = outputAudioContextRef.current.currentTime;
-                  const start = Math.max(now, nextStartTimeRef.current);
-                  source.start(start);
-                  nextStartTimeRef.current = start + buffer.duration;
-                  
-                  activeSourcesRef.current.add(source);
-                  source.onended = () => {
-                    activeSourcesRef.current.delete(source);
-                    if (activeSourcesRef.current.size === 0) {
-                      setIsSpeaking(false);
-                      setIsListening(true);
-                    }
-                  };
+              const buffer = await decodeAudioData(audioData, outputAudioContextRef.current);
+              
+              const source = outputAudioContextRef.current.createBufferSource();
+              source.buffer = buffer;
+              source.connect(outputAudioContextRef.current.destination);
+              
+              const now = outputAudioContextRef.current.currentTime;
+              const start = Math.max(now, nextStartTimeRef.current);
+              source.start(start);
+              nextStartTimeRef.current = start + buffer.duration;
+              
+              activeSourcesRef.current.add(source);
+              source.onended = () => {
+                activeSourcesRef.current.delete(source);
+                if (activeSourcesRef.current.size === 0) {
+                  setIsSpeaking(false);
+                  setIsListening(true);
                 }
-              }
+              };
             }
 
-            // Handle Text Output (for transcript)
-            const textParts = msg.serverContent?.modelTurn?.parts?.filter(
-              (p: any) => p.text
-            );
-            
-            if (textParts && textParts.length > 0) {
-              const fullText = textParts.map((p: any) => p.text).join('');
-              if (fullText.trim()) {
-                onTranscriptUpdate('aura', fullText);
-                setTranscript(prev => [...prev, { 
-                  role: 'aura', 
-                  text: fullText, 
-                  timestamp: Date.now() 
-                }]);
-              }
+            // Handle Output Transcription
+            if (msg.serverContent?.outputTranscription) {
+                const text = msg.serverContent.outputTranscription.text;
+                if (text) {
+                    currentTranscriptRef.current += text;
+                }
             }
 
             // Handle Tool Calls
@@ -550,6 +541,19 @@ export const useLiveAPIv2 = ({ onToolCall, onAuraInsight, onTranscriptUpdate }: 
             // Handle turn completion
             if (msg.serverContent?.turnComplete) {
               setAuraContext(prev => ({ ...prev, isAnalyzing: false }));
+              
+              // Finalize transcript
+              const fullText = currentTranscriptRef.current;
+              if (fullText.trim()) {
+                onTranscriptUpdate('aura', fullText);
+                setTranscript(prev => [...prev, { 
+                  role: 'aura', 
+                  text: fullText, 
+                  timestamp: Date.now() 
+                }]);
+              }
+              currentTranscriptRef.current = ""; // Reset
+              
               setIsListening(true);
             }
 
@@ -560,6 +564,7 @@ export const useLiveAPIv2 = ({ onToolCall, onAuraInsight, onTranscriptUpdate }: 
               });
               activeSourcesRef.current.clear();
               nextStartTimeRef.current = 0;
+              currentTranscriptRef.current = ""; // Clear partial transcript
               setIsSpeaking(false);
               setIsListening(true);
             }
