@@ -58,6 +58,99 @@ export interface StructuredBOM {
   productionNotes: string[];
 }
 
+export interface CostBreakdown {
+  materials: {
+    fabric: number;
+    trims: number;
+    hardware: number;
+    packaging: number;
+  };
+  labor: {
+    cutting: number;
+    sewing: number;
+    finishing: number;
+    qc: number;
+  };
+  overhead: {
+    sampling: number;
+    shipping: number;
+    duties: number;
+    miscellaneous: number;
+  };
+  total: number;
+  perUnit: number;
+  currency: string;
+  margin: {
+    suggestedRetailPrice: number; // Unified name
+    wholesalePrice: number;
+    profitMargin: number;
+  };
+}
+
+export interface ProductionTimeline {
+  sampling: string;
+  production: string;
+  shipping: string;
+  totalLeadTime: string;
+  // Extended fields for FashionForge
+  phases?: {
+    name: string;
+    durationDays: number;
+    startDay: number;
+    endDay: number;
+    dependencies: string[];
+    risks: string[];
+  }[];
+  totalDays?: number;
+  criticalPath?: string[];
+  bufferDays?: number;
+  estimatedDeliveryDate?: string;
+}
+
+export interface DesignBrief {
+  garmentType: string;
+  style: string;
+  targetDemographic: string;
+  keyFeatures: string[];
+  colorPalette: string[];
+  fabricSuggestions: string[];
+  constructionNotes: string;
+  marketPositioning: string;
+  estimatedRetailPrice: string;
+  sustainabilityConsiderations: string[];
+}
+
+export interface SupplierRecommendation {
+  material: string;
+  suppliers: {
+    name: string;
+    location: string;
+    sustainability: string;
+    priceRange: string;
+    minimumOrder: string;
+    url?: string;
+  }[];
+}
+
+export interface ManufacturingAnalysis {
+  feasibilityScore: number; // 0-100
+  costRating: 'Low' | 'Medium' | 'High';
+  productionRisks: string[];
+  manufacturingSuggestions: string[];
+}
+
+export interface ProductionReadyPack {
+  designBrief: DesignBrief;
+  conceptImage: string;
+  cadImage: string | null;
+  bomMarkdown: string;
+  sizingChart: string;
+  costBreakdown: CostBreakdown;
+  manufacturingAnalysis: ManufacturingAnalysis;
+  supplierRecommendations: SupplierRecommendation[];
+  productionTimeline: ProductionTimeline;
+}
+
 export interface DesignDraft {
   conceptImage: string | null; // Base64
   cadImage: string | null; // Base64
@@ -125,14 +218,6 @@ export interface DesignCritique {
   suggestions: string[];
 }
 
-// Phase 1.5: Manufacturing Analysis
-export interface ManufacturingAnalysis {
-  feasibilityScore: number; // 0-100
-  costRating: 'Low' | 'Medium' | 'High';
-  productionRisks: string[];
-  manufacturingSuggestions: string[];
-}
-
 // Phase 2: Guardrails & Reliability Types
 export interface BomValidationResult {
   isComplete: boolean;
@@ -193,38 +278,6 @@ export interface BrandIdentity {
 }
 
 // ============================================
-// AURA 2.0 TYPES
-// ============================================
-
-export interface AuraInsight {
-  id: string;
-  type: 'observation' | 'suggestion' | 'warning' | 'praise';
-  title: string;
-  content: string;
-  timestamp: number;
-  actionable?: {
-    tool: string;
-    args: any;
-    label: string;
-  };
-}
-
-export interface AuraConversationMessage {
-  role: 'user' | 'aura';
-  text: string;
-  timestamp: number;
-}
-
-export interface AuraSession {
-  id: string;
-  startTime: number;
-  endTime?: number;
-  messages: AuraConversationMessage[];
-  insights: AuraInsight[];
-  designSnapshots: string[]; // Base64 images of design states during session
-}
-
-// ============================================
 // FASHIONGPT TYPES
 // ============================================
 
@@ -245,79 +298,6 @@ export interface FashionGPTStage {
   error?: string;
   startTime?: number;
   endTime?: number;
-}
-
-export interface DesignBrief {
-  garmentType: string;
-  style: string;
-  targetDemographic: string;
-  keyFeatures: string[];
-  colorPalette: string[];
-  fabricSuggestions: string[];
-  constructionNotes: string;
-  marketPositioning: string;
-  estimatedRetailPrice: string;
-  sustainabilityConsiderations: string[];
-}
-
-export interface SupplierRecommendation {
-  material: string;
-  suppliers: {
-    name: string;
-    location: string;
-    sustainability: string;
-    priceRange: string;
-    minimumOrder: string;
-    url?: string;
-  }[];
-}
-
-export interface CostBreakdown {
-  materials: {
-    fabric: number;
-    trims: number;
-    hardware: number;
-    packaging: number;
-  };
-  labor: {
-    cutting: number;
-    sewing: number;
-    finishing: number;
-    qc: number;
-  };
-  overhead: {
-    sampling: number;
-    shipping: number;
-    duties: number;
-    miscellaneous: number;
-  };
-  total: number;
-  perUnit: number;
-  currency: string;
-  margin: {
-    suggestedRetailPrice: number;
-    wholesalePrice: number;
-    profitMargin: number;
-  };
-}
-
-export interface ProductionTimeline {
-  sampling: string;
-  production: string;
-  shipping: string;
-  totalLeadTime: string;
-}
-
-export interface ProductionReadyPack {
-  designBrief: DesignBrief;
-  conceptImage: string;
-  cadImage: string | null;
-  bomMarkdown: string;
-  sizingChart: string;
-  costBreakdown: CostBreakdown;
-  manufacturingAnalysis: ManufacturingAnalysis;
-  supplierRecommendations: SupplierRecommendation[];
-  productionTimeline: ProductionTimeline;
 }
 
 // ============================================

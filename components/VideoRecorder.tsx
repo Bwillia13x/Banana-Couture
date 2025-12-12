@@ -34,7 +34,6 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onShowToast }) => 
     setIsRecording(false);
   };
 
-  // Clean up on unmount
   useEffect(() => {
     return () => {
       if (streamRef.current) {

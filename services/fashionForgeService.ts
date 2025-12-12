@@ -1,6 +1,7 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 import { getGeminiApiKey, MISSING_API_KEY_MESSAGE, promptForApiKeySelection } from "./apiKey";
+import { CostBreakdown, ProductionTimeline } from "../types";
 
 // Helper to get fresh client
 const getAiClient = () => {
@@ -83,50 +84,6 @@ export interface ProductionMatch {
   estimatedTimeline: ProductionTimeline;
   risks: string[];
   recommendations: string[];
-}
-
-export interface CostBreakdown {
-  materials: {
-    fabric: number;
-    trims: number;
-    hardware: number;
-    packaging: number;
-  };
-  labor: {
-    cutting: number;
-    sewing: number;
-    finishing: number;
-    qc: number;
-  };
-  overhead: {
-    sampling: number;
-    shipping: number;
-    duties: number;
-    miscellaneous: number;
-  };
-  total: number;
-  perUnit: number;
-  currency: string;
-  margin: {
-    suggestedRetail: number;
-    wholesalePrice: number;
-    profitMargin: number;
-  };
-}
-
-export interface ProductionTimeline {
-  phases: {
-    name: string;
-    durationDays: number;
-    startDay: number;
-    endDay: number;
-    dependencies: string[];
-    risks: string[];
-  }[];
-  totalDays: number;
-  criticalPath: string[];
-  bufferDays: number;
-  estimatedDeliveryDate: string;
 }
 
 export interface SupplyChainNode {
@@ -214,9 +171,6 @@ export interface RealTimeCostUpdate {
 // GENERATIVE MANUFACTURER MATCHING
 // ============================================
 
-/**
- * Analyzes a design and generates tailored manufacturer matches
- */
 export const matchManufacturers = async (
   conceptImage: string,
   cadImage: string | null,
@@ -230,7 +184,7 @@ export const matchManufacturers = async (
   }
 ): Promise<ProductionMatch[]> => {
   return safeCall(async () => {
-    // 1. Analyze Design Complexity first to inform the search
+    // 1. Analyze Design Complexity first
     const analysisResponse = await getAiClient().models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: {
@@ -263,7 +217,7 @@ export const matchManufacturers = async (
 
     const analysis = JSON.parse(analysisResponse.text || "{}");
 
-    // 2. Generate specialized manufacturer profiles based on the specific analysis
+    // 2. Generate specialized manufacturer profiles
     const matchResponse = await getAiClient().models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: `Act as a Global Sourcing Expert.
@@ -280,12 +234,9 @@ export const matchManufacturers = async (
       ${preferences.preferredRegions?.length ? `- Preferred Regions: ${preferences.preferredRegions.join(', ')}` : ''}
       
       Task:
-      Generate 3 highly realistic, specific manufacturer profiles that would be the best match for this specific design and these constraints.
-      Include a mix of specialized boutique factories and larger scale facilities if appropriate.
+      Generate 3 highly realistic, specific manufacturer profiles.
       
-      For each manufacturer, provide a detailed match analysis (score, cost estimate for this specific order, timeline).
-      
-      Return JSON data matching the ProductionMatch interface.`,
+      Return JSON data matching the ProductionMatch structure. Note: 'suggestedRetailPrice' is used instead of 'suggestedRetail'.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -373,7 +324,7 @@ export const matchManufacturers = async (
                       margin: {
                         type: Type.OBJECT,
                         properties: {
-                          suggestedRetail: { type: Type.NUMBER },
+                          suggestedRetailPrice: { type: Type.NUMBER },
                           wholesalePrice: { type: Type.NUMBER },
                           profitMargin: { type: Type.NUMBER }
                         }
@@ -418,13 +369,6 @@ export const matchManufacturers = async (
   });
 };
 
-// ============================================
-// SUPPLY CHAIN MAPPING
-// ============================================
-
-/**
- * Maps the supply chain for a design's materials
- */
 export const mapSupplyChain = async (
   bomMarkdown: string,
   manufacturerLocation: { country: string; city: string }
@@ -439,19 +383,7 @@ ${bomMarkdown}
 
 And manufacturer location: ${manufacturerLocation.city}, ${manufacturerLocation.country}
 
-Create a realistic supply chain map showing:
-1. Raw material sources (fiber farms, chemical plants, etc.)
-2. Processing facilities (spinning mills, weaving mills, dye houses)
-3. The manufacturing facility
-4. Distribution points
-
-For each node, estimate:
-- Location (country, city if known)
-- Carbon footprint contribution (kg CO2)
-- Water usage (liters)
-- Sustainability certifications
-
-Return JSON.`,
+Create a realistic supply chain map. Return JSON.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -511,13 +443,6 @@ Return JSON.`,
   });
 };
 
-// ============================================
-// TECH PACK TRANSLATION
-// ============================================
-
-/**
- * Generates factory-ready tech pack in specified language
- */
 export const generateFactoryTechPack = async (
   conceptImage: string,
   cadImage: string | null,
@@ -532,25 +457,7 @@ export const generateFactoryTechPack = async (
         parts: [
           { inlineData: { mimeType: 'image/png', data: conceptImage } },
           ...(cadImage ? [{ inlineData: { mimeType: 'image/png', data: cadImage } }] : []),
-          { text: `Generate a factory-ready tech pack for this garment.
-
-Design Name: ${designName}
-BOM Reference:
-${bomMarkdown}
-
-Target Language: ${targetLanguage}
-
-Create a comprehensive tech pack including:
-1. Full measurements for sizes S, M, L, XL (in cm)
-2. Construction sequence with stitch types
-3. Material specifications
-4. Quality control checkpoints
-5. Packing instructions
-6. Labeling requirements
-
-Output MUST be in ${targetLanguage}.
-
-Return JSON.` }
+          { text: `Generate a factory-ready tech pack. Output MUST be in ${targetLanguage}. Return JSON.` }
         ]
       },
       config: {
@@ -632,13 +539,6 @@ Return JSON.` }
   });
 };
 
-// ============================================
-// REAL-TIME COST SIMULATION
-// ============================================
-
-/**
- * Simulates cost impact of a design change
- */
 export const simulateCostChange = async (
   currentBom: string,
   proposedChange: string,
@@ -648,24 +548,8 @@ export const simulateCostChange = async (
     const response = await getAiClient().models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: `You are a production cost estimator.
-
-Current BOM:
-${currentBom}
-
-Current Costs (USD):
-- Materials: ${currentCosts.materials.fabric + currentCosts.materials.trims + currentCosts.materials.hardware}
-- Labor: ${currentCosts.labor.cutting + currentCosts.labor.sewing + currentCosts.labor.finishing + currentCosts.labor.qc}
-- Total Per Unit: ${currentCosts.perUnit}
-
-Proposed Change: "${proposedChange}"
-
-Estimate how this change affects costs. Consider:
-- Material cost changes
-- Labor time changes
-- New technique requirements
-- Quality control implications
-
-Return JSON with updated cost breakdown and percentage change.`,
+      
+      Estimate how this change affects costs. Return JSON.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -716,7 +600,6 @@ Return JSON with updated cost breakdown and percentage change.`,
 
     const result = JSON.parse(response.text || "{}");
     
-    // Ensure all required fields
     return {
       triggeredBy: result.triggeredBy || proposedChange,
       previousTotal: currentCosts.total,
@@ -727,7 +610,7 @@ Return JSON with updated cost breakdown and percentage change.`,
         ...currentCosts,
         ...result.breakdown,
         total: result.newTotal || currentCosts.total,
-        perUnit: (result.newTotal || currentCosts.total) / 100, // Assuming 100 units
+        perUnit: (result.newTotal || currentCosts.total) / 100,
         currency: 'USD',
         margin: currentCosts.margin
       },

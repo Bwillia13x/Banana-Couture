@@ -159,7 +159,6 @@ export const Marketplace: React.FC<MarketplaceProps> = ({
   const [sortOption, setSortOption] = useState<SortOption>('newest');
   const [activeCategory, setActiveCategory] = useState<Category>('All');
   
-  // NEW: View Toggle (Grid vs Runway)
   const [viewMode, setViewMode] = useState<'grid' | 'runway'>('grid');
 
   const handlePurchase = (product: Product) => {
@@ -215,7 +214,6 @@ export const Marketplace: React.FC<MarketplaceProps> = ({
     return result;
   }, [products, searchTerm, filterMode, sortOption, activeCategory]);
 
-  // Get random related products for the modal
   const getRelatedProducts = (currentId: string) => {
       return products
         .filter(p => p.id !== currentId)
@@ -234,7 +232,6 @@ export const Marketplace: React.FC<MarketplaceProps> = ({
     }
   };
 
-  // If in Runway mode, render full screen feed immediately (different layout structure)
   if (viewMode === 'runway') {
       return (
           <div className="h-full relative bg-black">
@@ -262,9 +259,6 @@ export const Marketplace: React.FC<MarketplaceProps> = ({
           </div>
       );
   }
-
-  // Cast viewMode to string to avoid TS narrowing issue in Grid view (where viewMode is logically 'grid')
-  const currentViewMode = viewMode as string;
 
   return (
     <div className="min-h-full pb-32 bg-nc-bg">
@@ -305,14 +299,14 @@ export const Marketplace: React.FC<MarketplaceProps> = ({
                 <div className="flex bg-nc-bg-elevated shadow-nc-soft border border-nc-border-subtle rounded-full p-1 gap-1">
                     <button 
                         onClick={() => setViewMode('grid')}
-                        className={`px-6 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${currentViewMode === 'grid' ? 'bg-nc-ink text-white shadow-md' : 'text-nc-ink-subtle hover:text-nc-ink hover:bg-nc-bg-soft'}`}
+                        className={`px-6 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${(viewMode as string) === 'grid' ? 'bg-nc-ink text-white shadow-md' : 'text-nc-ink-subtle hover:text-nc-ink hover:bg-nc-bg-soft'}`}
                     >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
                         Catalog
                     </button>
                     <button 
                         onClick={() => setViewMode('runway')}
-                        className={`px-6 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${currentViewMode === 'runway' ? 'bg-nc-ink text-white shadow-md' : 'text-nc-ink-subtle hover:text-nc-ink hover:bg-nc-bg-soft'}`}
+                        className={`px-6 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 ${(viewMode as string) === 'runway' ? 'bg-nc-ink text-white shadow-md' : 'text-nc-ink-subtle hover:text-nc-ink hover:bg-nc-bg-soft'}`}
                     >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
                         Runway
