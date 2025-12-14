@@ -1,6 +1,10 @@
+
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } from "@google/genai";
 import { getGeminiApiKey, promptForApiKeySelection, MISSING_API_KEY_MESSAGE } from '../services/apiKey';
+
+const LIVE_MODEL_ID = 'gemini-2.5-flash-native-audio-preview-12-2025';
+const FALLBACK_MODEL_ID = 'gemini-2.5-flash-native-audio-preview-09-2025';
 
 // Enhanced Tool Definitions for Multimodal Context
 const toolsDef: FunctionDeclaration[] = [
@@ -305,117 +309,132 @@ TOOLS:
         systemInstruction += `\n\nCURRENT DESIGN: A fashion concept is currently loaded on the canvas. Reference it when making suggestions.`;
       }
 
-      // Start Gemini Session with multimodal config
-      const sessionPromise = ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
-        config: {
-          responseModalities: [Modality.AUDIO],
-          tools: [{ functionDeclarations: toolsDef }],
-          systemInstruction,
-        },
-        callbacks: {
-          onopen: () => {
-            console.log("Multimodal Live Connected");
-            setIsConnected(true);
-            setIsListening(true);
-          },
-          onmessage: async (msg: LiveServerMessage) => {
-            // Handle Audio Output
-            const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-            if (audioData && audioContextRef.current) {
-              setIsSpeaking(true);
-              setIsListening(false);
-              const buffer = await decodeAudioData(audioData, audioContextRef.current);
-              
-              const source = audioContextRef.current.createBufferSource();
-              source.buffer = buffer;
-              source.connect(audioContextRef.current.destination);
-              
-              const now = audioContextRef.current.currentTime;
-              const start = Math.max(now, nextStartTimeRef.current);
-              source.start(start);
-              nextStartTimeRef.current = start + buffer.duration;
-              
-              activeSourcesRef.current.add(source);
-              source.onended = () => {
-                activeSourcesRef.current.delete(source);
-                if (activeSourcesRef.current.size === 0) {
-                  setIsSpeaking(false);
-                  setIsListening(true);
-                }
-              };
-            }
+      const sessionConfig = {
+        responseModalities: [Modality.AUDIO],
+        tools: [{ functionDeclarations: toolsDef }],
+        systemInstruction,
+      };
 
-            // Handle Tool Calls
-            if (msg.toolCall) {
-              for (const fc of msg.toolCall.functionCalls) {
-                console.log("Multimodal Tool Call:", fc.name, fc.args);
-                try {
-                  // Special handling for visual-aware tools
-                  if (fc.name === 'captureReferenceFrame') {
-                    const frameData = captureVideoFrame();
-                    if (frameData) {
-                      const newRef: VisualReference = {
-                        id: `ref-${Date.now()}`,
-                        label: (fc.args as any).label || 'Reference',
-                        imageData: frameData,
-                        timestamp: Date.now()
-                      };
-                      setCapturedReferences(prev => [...prev, newRef]);
-                      if (onReferenceCapture) onReferenceCapture(newRef);
-                    }
+      const callbacks = {
+        onopen: () => {
+          console.log("Multimodal Live Connected");
+          setIsConnected(true);
+          setIsListening(true);
+        },
+        onmessage: async (msg: LiveServerMessage) => {
+          // Handle Audio Output
+          const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+          if (audioData && audioContextRef.current) {
+            setIsSpeaking(true);
+            setIsListening(false);
+            const buffer = await decodeAudioData(audioData, audioContextRef.current);
+            
+            const source = audioContextRef.current.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioContextRef.current.destination);
+            
+            const now = audioContextRef.current.currentTime;
+            const start = Math.max(now, nextStartTimeRef.current);
+            source.start(start);
+            nextStartTimeRef.current = start + buffer.duration;
+            
+            activeSourcesRef.current.add(source);
+            source.onended = () => {
+              activeSourcesRef.current.delete(source);
+              if (activeSourcesRef.current.size === 0) {
+                setIsSpeaking(false);
+                setIsListening(true);
+              }
+            };
+          }
+
+          // Handle Tool Calls
+          if (msg.toolCall) {
+            for (const fc of msg.toolCall.functionCalls) {
+              console.log("Multimodal Tool Call:", fc.name, fc.args);
+              try {
+                // Special handling for visual-aware tools
+                if (fc.name === 'captureReferenceFrame') {
+                  const frameData = captureVideoFrame();
+                  if (frameData) {
+                    const newRef: VisualReference = {
+                      id: `ref-${Date.now()}`,
+                      label: (fc.args as any).label || 'Reference',
+                      imageData: frameData,
+                      timestamp: Date.now()
+                    };
+                    setCapturedReferences(prev => [...prev, newRef]);
+                    if (onReferenceCapture) onReferenceCapture(newRef);
                   }
-                  
-                  if (fc.name === 'suggestModification' && onVisualInsight) {
-                    const args = fc.args as any;
-                    onVisualInsight(`${args.modification}\n\nReasoning: ${args.reasoning}`);
-                  }
-                  
-                  const result = await onToolCall(fc.name, fc.args);
-                  sessionPromise.then(session => {
-                    session.sendToolResponse({
-                      functionResponses: {
-                        id: fc.id,
-                        name: fc.name,
-                        response: { result: "OK" }
-                      }
-                    });
-                  });
-                } catch (e) {
-                  console.error("Tool execution error", e);
                 }
+                
+                if (fc.name === 'suggestModification' && onVisualInsight) {
+                  const args = fc.args as any;
+                  onVisualInsight(`${args.modification}\n\nReasoning: ${args.reasoning}`);
+                }
+                
+                const result = await onToolCall(fc.name, fc.args);
+                sessionPromiseRef.current?.then(session => {
+                  session.sendToolResponse({
+                    functionResponses: {
+                      id: fc.id,
+                      name: fc.name,
+                      response: { result: "OK" }
+                    }
+                  });
+                });
+              } catch (e) {
+                console.error("Tool execution error", e);
               }
             }
-            
-            // Handle Interruption
-            if (msg.serverContent?.interrupted) {
-              activeSourcesRef.current.forEach(s => {
-                try { s.stop(); } catch(e){}
-              });
-              activeSourcesRef.current.clear();
-              nextStartTimeRef.current = 0;
-              setIsSpeaking(false);
-              setIsListening(true);
-            }
-
-            // Handle turn completion
-            if (msg.serverContent?.turnComplete) {
-              setIsListening(true);
-            }
-          },
-          onclose: () => {
-            console.log("Multimodal Live Closed");
-            setIsConnected(false);
-            setIsListening(false);
-          },
-          onerror: (e) => {
-            console.error("Multimodal Live Error", e);
-            setIsConnected(false);
-            setIsSpeaking(false);
-            setIsListening(false);
           }
+          
+          // Handle Interruption
+          if (msg.serverContent?.interrupted) {
+            activeSourcesRef.current.forEach(s => {
+              try { s.stop(); } catch(e){}
+            });
+            activeSourcesRef.current.clear();
+            nextStartTimeRef.current = 0;
+            setIsSpeaking(false);
+            setIsListening(true);
+          }
+
+          // Handle turn completion
+          if (msg.serverContent?.turnComplete) {
+            setIsListening(true);
+          }
+        },
+        onclose: () => {
+          console.log("Multimodal Live Closed");
+          setIsConnected(false);
+          setIsListening(false);
+        },
+        onerror: (e) => {
+          console.error("Multimodal Live Error", e);
+          setIsConnected(false);
+          setIsSpeaking(false);
+          setIsListening(false);
         }
-      });
+      };
+
+      // Start Gemini Session with retry logic
+      let sessionPromise;
+      try {
+        sessionPromise = ai.live.connect({
+          model: LIVE_MODEL_ID,
+          config: sessionConfig,
+          callbacks: callbacks
+        });
+        await sessionPromise; // Wait to ensure connection success
+      } catch (e) {
+        console.warn(`[Multimodal] Connection to ${LIVE_MODEL_ID} failed, falling back to ${FALLBACK_MODEL_ID}`, e);
+        sessionPromise = ai.live.connect({
+          model: FALLBACK_MODEL_ID,
+          config: sessionConfig,
+          callbacks: callbacks
+        });
+      }
       
       sessionPromiseRef.current = sessionPromise;
 
@@ -433,7 +452,7 @@ TOOLS:
 
         const b64 = floatTo16BitPCM(inputData);
         
-        sessionPromise.then(session => {
+        sessionPromiseRef.current?.then(session => {
           session.sendRealtimeInput({
             media: {
               mimeType: 'audio/pcm;rate=16000',

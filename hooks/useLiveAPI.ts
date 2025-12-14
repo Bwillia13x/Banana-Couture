@@ -3,6 +3,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import { getGeminiApiKey } from '../services/apiKey';
 
+const LIVE_MODEL_ID = 'gemini-2.5-flash-native-audio-preview-12-2025';
+const FALLBACK_MODEL_ID = 'gemini-2.5-flash-native-audio-preview-09-2025';
+
 // Helper for audio encoding
 function encode(bytes: Uint8Array) {
   let binary = '';
@@ -104,97 +107,123 @@ export const useLiveAPI = ({ onToolCall }: UseLiveAPIProps = {}) => {
       systemInstruction: 'You are Aura, an advanced AI fashion design assistant. You are helpful, creative, and professional. You can see the design canvas and help manipulate it.',
     };
 
-    const sessionPromise = ai.live.connect({
-      model: 'gemini-2.5-flash-native-audio-preview-09-2025',
-      config,
-      callbacks: {
-        onopen: () => {
-          setIsConnected(true);
-          // Start streaming audio
-          const processor = inputContextRef.current!.createScriptProcessor(4096, 1, 1);
-          processor.onaudioprocess = (e) => {
-            const inputData = e.inputBuffer.getChannelData(0);
-            // Convert Float32 to Int16
-            const l = inputData.length;
-            const int16 = new Int16Array(l);
-            for (let i = 0; i < l; i++) {
-              int16[i] = inputData[i] * 32768;
-            }
-            const blob = {
-                data: encode(new Uint8Array(int16.buffer)),
-                mimeType: 'audio/pcm;rate=16000'
-            };
-            
-            sessionPromise.then(session => {
-                session.sendRealtimeInput({ media: blob });
-            });
+    const callbacks = {
+      onopen: () => {
+        setIsConnected(true);
+        // Start streaming audio
+        const processor = inputContextRef.current!.createScriptProcessor(4096, 1, 1);
+        processor.onaudioprocess = (e) => {
+          const inputData = e.inputBuffer.getChannelData(0);
+          // Convert Float32 to Int16
+          const l = inputData.length;
+          const int16 = new Int16Array(l);
+          for (let i = 0; i < l; i++) {
+            int16[i] = inputData[i] * 32768;
+          }
+          const blob = {
+              data: encode(new Uint8Array(int16.buffer)),
+              mimeType: 'audio/pcm;rate=16000'
           };
-          source.connect(processor);
-          processor.connect(inputContextRef.current!.destination);
-        },
-        onmessage: async (msg: LiveServerMessage) => {
-          // Handle Audio
-          const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-          if (audioData) {
-            setIsSpeaking(true);
-            const ctx = audioContextRef.current!;
-            nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
-            
-            const audioBuffer = await decodeAudioData(
-              decode(audioData),
-              ctx,
-              24000,
-              1
-            );
-            
-            const sourceNode = ctx.createBufferSource();
-            sourceNode.buffer = audioBuffer;
-            sourceNode.connect(ctx.destination);
-            sourceNode.addEventListener('ended', () => {
-                sourcesRef.current.delete(sourceNode);
-                if (sourcesRef.current.size === 0) setIsSpeaking(false);
-            });
-            
-            sourceNode.start(nextStartTimeRef.current);
-            sourcesRef.current.add(sourceNode);
-            nextStartTimeRef.current += audioBuffer.duration;
-          }
-
-          // Handle Tools
-          if (msg.toolCall && onToolCall) {
-             for (const fc of msg.toolCall.functionCalls) {
-                 const result = await onToolCall(fc.name, fc.args);
-                 sessionPromise.then(session => {
-                     session.sendToolResponse({
-                         functionResponses: {
-                             id: fc.id,
-                             name: fc.name,
-                             response: { result: JSON.stringify(result) }
-                         }
-                     });
-                 });
-             }
-          }
           
-          if (msg.serverContent?.interrupted) {
-              sourcesRef.current.forEach(s => s.stop());
-              sourcesRef.current.clear();
-              nextStartTimeRef.current = 0;
-              setIsSpeaking(false);
-          }
-        },
-        onclose: () => {
-          setIsConnected(false);
-          setIsSpeaking(false);
-        },
-        onerror: (err) => {
-          console.error("Live API Error", err);
-          setIsConnected(false);
+          sessionRef.current?.then((session: any) => {
+              session.sendRealtimeInput({ media: blob });
+          });
+        };
+        source.connect(processor);
+        processor.connect(inputContextRef.current!.destination);
+      },
+      onmessage: async (msg: LiveServerMessage) => {
+        // Handle Audio
+        const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+        if (audioData) {
+          setIsSpeaking(true);
+          const ctx = audioContextRef.current!;
+          nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime);
+          
+          const audioBuffer = await decodeAudioData(
+            decode(audioData),
+            ctx,
+            24000,
+            1
+          );
+          
+          const sourceNode = ctx.createBufferSource();
+          sourceNode.buffer = audioBuffer;
+          sourceNode.connect(ctx.destination);
+          sourceNode.addEventListener('ended', () => {
+              sourcesRef.current.delete(sourceNode);
+              if (sourcesRef.current.size === 0) setIsSpeaking(false);
+          });
+          
+          sourceNode.start(nextStartTimeRef.current);
+          sourcesRef.current.add(sourceNode);
+          nextStartTimeRef.current += audioBuffer.duration;
         }
+
+        // Handle Tools
+        if (msg.toolCall && onToolCall) {
+           for (const fc of msg.toolCall.functionCalls) {
+               const result = await onToolCall(fc.name, fc.args);
+               sessionRef.current?.then((session: any) => {
+                   session.sendToolResponse({
+                       functionResponses: {
+                           id: fc.id,
+                           name: fc.name,
+                           response: { result: JSON.stringify(result) }
+                       }
+                   });
+               });
+           }
+        }
+        
+        if (msg.serverContent?.interrupted) {
+            sourcesRef.current.forEach(s => s.stop());
+            sourcesRef.current.clear();
+            nextStartTimeRef.current = 0;
+            setIsSpeaking(false);
+        }
+      },
+      onclose: () => {
+        setIsConnected(false);
+        setIsSpeaking(false);
+      },
+      onerror: (err: any) => {
+        console.error("Live API Error", err);
+        setIsConnected(false);
       }
-    });
-    
-    sessionRef.current = sessionPromise;
+    };
+
+    // Connection logic with retry/fallback
+    let sessionPromise;
+    try {
+      sessionPromise = ai.live.connect({
+        model: LIVE_MODEL_ID,
+        config,
+        callbacks
+      });
+      // We don't await here to keep the existing promise structure for sessionRef
+      // But we can check if it rejects quickly? No, simpler to just wrap connect.
+      // Actually, since we need to assign sessionRef.current = sessionPromise immediately,
+      // and ai.live.connect returns a Promise<LiveSession>, we can just use .catch() for fallback.
+      
+      // However, to do a clean fallback we might want to try-catch the connect call if we were awaiting.
+      // Since the original code structure relies on sessionPromise being the promise itself, let's wrap it.
+      
+      const connectWithFallback = async () => {
+        try {
+          return await ai.live.connect({ model: LIVE_MODEL_ID, config, callbacks });
+        } catch (e) {
+          console.warn(`[LiveAPI] Primary connection failed, retrying with fallback ${FALLBACK_MODEL_ID}`, e);
+          return await ai.live.connect({ model: FALLBACK_MODEL_ID, config, callbacks });
+        }
+      };
+      
+      sessionPromise = connectWithFallback();
+      sessionRef.current = sessionPromise;
+
+    } catch (e) {
+      console.error("Failed to initiate connection", e);
+    }
   };
 
   const disconnect = () => {

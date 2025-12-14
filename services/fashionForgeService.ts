@@ -184,59 +184,32 @@ export const matchManufacturers = async (
   }
 ): Promise<ProductionMatch[]> => {
   return safeCall(async () => {
-    // 1. Analyze Design Complexity first
-    const analysisResponse = await getAiClient().models.generateContent({
+    // Combined Analysis & Matching in one shot for speed
+    const response = await getAiClient().models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/png', data: conceptImage } },
-          { text: `Analyze this fashion design for manufacturing.
-          BOM: ${bomMarkdown}
+          { text: `Act as a Global Sourcing Expert.
           
-          Identify:
-          1. Complexity Level (basic/intermediate/advanced/couture)
-          2. Specific fabrication techniques needed (e.g. bonding, hand-embroidery)
-          3. Material handling requirements
+          Input Design Data:
+          - BOM Summary: ${bomMarkdown.substring(0, 1000)}
           
-          Return JSON.` }
+          User Sourcing Preferences:
+          - Order Quantity: ${preferences.quantity} units
+          - Budget Tier: ${preferences.budget}
+          - Sustainability Priority: ${preferences.prioritizeSustainability ? 'High' : 'Standard'}
+          ${preferences.preferredRegions?.length ? `- Preferred Regions: ${preferences.preferredRegions.join(', ')}` : ''}
+          ${preferences.maxLeadDays ? `- Max Lead Time: ${preferences.maxLeadDays} days` : ''}
+          
+          Task:
+          1. Analyze the design image and BOM to determine manufacturing complexity (techniques, materials).
+          2. Based on this complexity and user preferences, identify 3 highly realistic, suitable manufacturer profiles.
+          3. For each match, estimate costs and timeline specifically for this order.
+          
+          Return JSON matching the ProductionMatch structure.` }
         ]
       },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            complexityLevel: { type: Type.STRING },
-            keyTechniques: { type: Type.ARRAY, items: { type: Type.STRING } },
-            materialRequirements: { type: Type.STRING }
-          },
-          required: ["complexityLevel", "keyTechniques", "materialRequirements"]
-        }
-      }
-    });
-
-    const analysis = JSON.parse(analysisResponse.text || "{}");
-
-    // 2. Generate specialized manufacturer profiles
-    const matchResponse = await getAiClient().models.generateContent({
-      model: 'gemini-3-pro-preview',
-      contents: `Act as a Global Sourcing Expert.
-      
-      Design Analysis:
-      - Complexity: ${analysis.complexityLevel}
-      - Techniques: ${analysis.keyTechniques.join(', ')}
-      - Material Req: ${analysis.materialRequirements}
-      
-      User Preferences:
-      - Order Qty: ${preferences.quantity} units
-      - Budget Tier: ${preferences.budget}
-      - Sustainability Priority: ${preferences.prioritizeSustainability ? 'High' : 'Standard'}
-      ${preferences.preferredRegions?.length ? `- Preferred Regions: ${preferences.preferredRegions.join(', ')}` : ''}
-      
-      Task:
-      Generate 3 highly realistic, specific manufacturer profiles.
-      
-      Return JSON data matching the ProductionMatch structure. Note: 'suggestedRetailPrice' is used instead of 'suggestedRetail'.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -364,7 +337,7 @@ export const matchManufacturers = async (
       }
     });
 
-    const result = JSON.parse(matchResponse.text || "{}");
+    const result = JSON.parse(response.text || "{}");
     return result.matches || [];
   });
 };

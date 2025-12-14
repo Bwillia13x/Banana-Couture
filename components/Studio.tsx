@@ -97,6 +97,46 @@ const PHYSICS_HUD = ({ physics }: { physics: FabricPhysics }) => (
   </div>
 );
 
+// Sidebar Button Component (Moved outside to prevent re-mounting issues)
+const SidebarButton = ({ onClick, active, disabled, icon, label, description, accentColor = 'indigo', highlight = false, onHover }: any) => {
+    const activeColors = {
+        indigo: 'bg-nc-accent-soft text-nc-accent-strong border-r-2 border-nc-accent',
+        purple: 'bg-nc-accent-soft text-nc-accent-strong border-r-2 border-nc-accent',
+        pink: 'bg-pink-50 text-pink-600 border-r-2 border-pink-500',
+        emerald: 'bg-emerald-50 text-emerald-600 border-r-2 border-emerald-500'
+    };
+    
+    let buttonClass = 'text-nc-ink-subtle hover:bg-nc-bg-soft hover:text-nc-ink border-transparent border-r-2';
+    if (active) {
+        buttonClass = activeColors[accentColor as keyof typeof activeColors] || activeColors.indigo;
+    } else if (highlight) {
+        buttonClass = 'bg-emerald-50 text-emerald-600 animate-pulse border-emerald-300 border-r-2';
+    }
+    
+    return (
+        <div className="relative flex justify-center w-full my-1">
+            <button 
+                onClick={onClick} 
+                disabled={disabled}
+                aria-label={label}
+                onMouseEnter={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    onHover({
+                        label,
+                        description,
+                        y: rect.top + rect.height / 2,
+                        x: rect.right + 12
+                    });
+                }}
+                onMouseLeave={() => onHover(null)}
+                className={`w-12 h-12 flex items-center justify-center transition-all duration-200 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed mx-2 ${buttonClass}`}
+            >
+                {icon}
+            </button>
+        </div>
+    );
+};
+
 export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialDraft, readOnly = false, activeChallenge }) => {
   // --- State ---
   const DEFAULT_PROMPT = 'Classic mens sweater polo, 1960s Mad Men style, textured knit fabric, charcoal grey with white piping, vintage studio lighting';
@@ -757,8 +797,8 @@ export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialD
       }
   };
 
-  // --- Aura 2.0 Integration ---
-
+  // ... (Keep Aura 2.0 Integration & other hooks as they were) ...
+  // Aura 2.0 Integration
   // Canvas image getter for Aura vision
   const getCanvasImage = useCallback(() => {
     return draft.conceptImage;
@@ -1003,46 +1043,6 @@ export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialD
     };
   }, [handleGlobalMouseMove, handleGlobalMouseUp]);
 
-  // --- Helper for Sidebar Icons ---
-  const SidebarButton = ({ onClick, active, disabled, icon, label, description, accentColor = 'indigo', highlight = false }: any) => {
-      const activeColors = {
-          indigo: 'bg-nc-accent-soft text-nc-accent-strong border-r-2 border-nc-accent',
-          purple: 'bg-nc-accent-soft text-nc-accent-strong border-r-2 border-nc-accent',
-          pink: 'bg-pink-50 text-pink-600 border-r-2 border-pink-500',
-          emerald: 'bg-emerald-50 text-emerald-600 border-r-2 border-emerald-500'
-      };
-      
-      let buttonClass = 'text-nc-ink-subtle hover:bg-nc-bg-soft hover:text-nc-ink border-transparent border-r-2';
-      if (active) {
-          buttonClass = activeColors[accentColor as keyof typeof activeColors] || activeColors.indigo;
-      } else if (highlight) {
-          buttonClass = 'bg-emerald-50 text-emerald-600 animate-pulse border-emerald-300 border-r-2';
-      }
-      
-      return (
-          <div className="relative flex justify-center w-full my-1">
-              <button 
-                  onClick={onClick} 
-                  disabled={disabled}
-                  aria-label={label}
-                  onMouseEnter={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setHoveredTool({
-                          label,
-                          description,
-                          y: rect.top + rect.height / 2,
-                          x: rect.right + 12
-                      });
-                  }}
-                  onMouseLeave={() => setHoveredTool(null)}
-                  className={`w-12 h-12 flex items-center justify-center transition-all duration-200 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed mx-2 ${buttonClass}`}
-              >
-                  {icon}
-              </button>
-          </div>
-      );
-  };
-
   return (
     <div className="flex flex-col flex-grow h-[calc(100vh-64px)] overflow-hidden bg-nc-bg text-nc-ink font-sans">
       {isLoading && <LoadingOverlay message={loadingMessage} />}
@@ -1201,6 +1201,7 @@ export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialD
       {/* Fabric Texture Modal - Updated for Luxury Feel & Library Save */}
       {fabricModal.isOpen && (
           <div className="absolute inset-0 z-[100] flex items-center justify-center bg-nc-ink/80 backdrop-blur-md p-6" onClick={() => setFabricModal(prev => ({...prev, isOpen: false}))}>
+              {/* ... Fabric Modal Content ... */}
               <div className="bg-white rounded-nc-xl p-0 max-w-sm w-full shadow-2xl relative overflow-hidden animate-scale-in" onClick={e => e.stopPropagation()}>
                   <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-nc-accent to-purple-600"></div>
                   <button onClick={() => setFabricModal(prev => ({...prev, isOpen: false}))} className="absolute top-3 right-3 z-10 p-1.5 bg-white/80 hover:bg-white rounded-full text-nc-ink-subtle hover:text-nc-ink transition-colors shadow-sm">
@@ -1271,7 +1272,7 @@ export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialD
         {/* LEFT TOOLBAR: Visible on desktop, or if mobile tab is 'tools' */}
         <aside 
             id="tour-studio-toolbar"
-            className={`${mobileTab === 'tools' ? 'flex' : 'hidden'} md:flex w-full md:w-16 flex-shrink-0 z-10 flex-col items-center py-4 bg-nc-bg-elevated border-r border-nc-border-subtle shadow-sm overflow-y-auto custom-scrollbar pl-safe-left pr-safe-right`} 
+            className={`${mobileTab === 'tools' ? 'flex' : 'hidden'} md:flex w-full md:w-16 flex-shrink-0 z-30 relative flex-col items-center py-4 bg-nc-bg-elevated border-r border-nc-border-subtle shadow-sm overflow-y-auto custom-scrollbar pl-safe-left pr-safe-right`} 
             data-purpose="left-toolbar-container"
             onScroll={() => setHoveredTool(null)} // Hide tooltip on scroll to prevent misalignment
         >
@@ -1281,6 +1282,7 @@ export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialD
                 icon={<svg fill="none" height="22" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 24 24" width="22"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>}
                 label="Draw / Mask Edit"
                 description="Edit specific areas using AI masking"
+                onHover={setHoveredTool}
             />
             
             {/* Divider */}
@@ -1292,6 +1294,7 @@ export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialD
                 label="Collection Wizard"
                 accentColor="indigo"
                 description="Generate a cohesive line of garments"
+                onHover={setHoveredTool}
             />
             
             <SidebarButton 
@@ -1300,6 +1303,7 @@ export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialD
               label="FashionGPT"
               accentColor="purple"
               description="Agentic collection planning & execution"
+              onHover={setHoveredTool}
             />
 
             <SidebarButton 
@@ -1308,6 +1312,7 @@ export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialD
               label="Sensory Translate"
               accentColor="pink"
               description="Convert video/audio into fashion concepts"
+              onHover={setHoveredTool}
             />
             
             <SidebarButton 
@@ -1316,6 +1321,7 @@ export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialD
                 label="DNA Splicer"
                 accentColor="purple"
                 description="Merge style genomes of two designs"
+                onHover={setHoveredTool}
             />
 
             <SidebarButton 
@@ -1325,6 +1331,7 @@ export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialD
               label="FashionForge Pipeline"
               accentColor="emerald"
               description="Find manufacturers & estimate costs"
+              onHover={setHoveredTool}
             />
 
             <div className="w-8 h-px bg-nc-border-strong my-2 opacity-50"></div>
@@ -1337,6 +1344,7 @@ export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialD
                 label="AI Design Critic"
                 accentColor="pink"
                 description="Get professional design feedback"
+                onHover={setHoveredTool}
             />
             
             <SidebarButton 
@@ -1347,6 +1355,7 @@ export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialD
                 label="Campaign Studio"
                 accentColor="pink"
                 description="Generate editorial marketing assets"
+                onHover={setHoveredTool}
             />
 
             <SidebarButton 
@@ -1357,6 +1366,7 @@ export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialD
                 label="Magic Mirror (Try-On)"
                 accentColor="pink"
                 description="Virtually try on your design"
+                onHover={setHoveredTool}
             />
         </aside>
         
@@ -1374,6 +1384,7 @@ export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialD
             onTouchEnd={handleTouchEnd}
             style={{ touchAction: 'none' }} // Crucial for mobile pan/zoom
         >
+            {/* ... rest of the canvas ... */}
             {/* Drag Overlay */}
             {isDraggingOver && (
                 <div className="absolute inset-4 z-50 border-4 border-dashed border-nc-accent rounded-3xl bg-nc-accent-soft/20 backdrop-blur-sm flex items-center justify-center pointer-events-none animate-pulse">
@@ -1634,6 +1645,8 @@ export const Studio: React.FC<StudioProps> = ({ onPublish, onShowToast, initialD
             className={`${mobileTab === 'properties' ? 'flex' : 'hidden'} md:flex w-full md:w-80 bg-nc-bg-elevated border-l border-nc-border-subtle flex-col shadow-xl z-20`} 
             data-purpose="right-properties-panel"
         >
+            {/* ... Right panel content ... */}
+            {/* ... (this part is unchanged) ... */}
             <div className="flex border-b border-nc-border-subtle">
                 <button 
                     onClick={() => setActiveRightTab('properties')}

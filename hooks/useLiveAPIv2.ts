@@ -3,6 +3,9 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } from "@google/genai";
 import { getGeminiApiKey, promptForApiKeySelection } from '../services/apiKey';
 
+const LIVE_MODEL_ID = 'gemini-2.5-flash-native-audio-preview-12-2025';
+const FALLBACK_MODEL_ID = 'gemini-2.5-flash-native-audio-preview-09-2025';
+
 // ============================================
 // AURA 2.0 - ENHANCED TOOL DEFINITIONS
 // ============================================
@@ -411,180 +414,195 @@ export const useLiveAPIv2 = ({ onToolCall, onAuraInsight, onTranscriptUpdate }: 
       inputSource.connect(processor);
       processor.connect(inputCtx.destination);
 
-      // Connect to Gemini Live API with Aura 2.0 config
-      const session = await ai.live.connect({
-        model: 'gemini-2.5-flash-native-audio-preview-09-2025',
-        config: {
-          responseModalities: [Modality.AUDIO], // MUST contain exactly one modality: AUDIO
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
-          },
-          outputAudioTranscription: {}, // Enable transcription for model output
-          tools: [{ functionDeclarations: aura2ToolsDef }],
-          systemInstruction: AURA_2_SYSTEM_INSTRUCTION,
+      // Common config for live session
+      const liveConfig = {
+        responseModalities: [Modality.AUDIO], // MUST contain exactly one modality: AUDIO
+        speechConfig: {
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
         },
-        callbacks: {
-          onopen: () => {
-            console.log("Aura 2.0 Connected");
-            setIsConnected(true);
-            setIsListening(true);
-            
-            // Send initial canvas state if available
-            const currentCanvas = canvasImageGetterRef.current?.();
-            if (currentCanvas) {
-              setTimeout(() => {
-                sendCanvasUpdate(currentCanvas);
-              }, 1000);
-            }
-          },
+        outputAudioTranscription: {}, // Enable transcription for model output
+        tools: [{ functionDeclarations: aura2ToolsDef }],
+        systemInstruction: AURA_2_SYSTEM_INSTRUCTION,
+      };
+
+      const callbacks = {
+        onopen: () => {
+          console.log("Aura 2.0 Connected");
+          setIsConnected(true);
+          setIsListening(true);
           
-          onmessage: async (msg: LiveServerMessage) => {
-            // Handle Audio Output
-            const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-            
-            if (audioData && outputAudioContextRef.current) {
-              setIsSpeaking(true);
-              setIsListening(false);
-              
-              const buffer = await decodeAudioData(audioData, outputAudioContextRef.current);
-              
-              const source = outputAudioContextRef.current.createBufferSource();
-              source.buffer = buffer;
-              source.connect(outputAudioContextRef.current.destination);
-              
-              const now = outputAudioContextRef.current.currentTime;
-              const start = Math.max(now, nextStartTimeRef.current);
-              source.start(start);
-              nextStartTimeRef.current = start + buffer.duration;
-              
-              activeSourcesRef.current.add(source);
-              source.onended = () => {
-                activeSourcesRef.current.delete(source);
-                if (activeSourcesRef.current.size === 0) {
-                  setIsSpeaking(false);
-                  setIsListening(true);
-                }
-              };
-            }
-
-            // Handle Output Transcription
-            if (msg.serverContent?.outputTranscription) {
-                const text = msg.serverContent.outputTranscription.text;
-                if (text) {
-                    currentTranscriptRef.current += text;
-                }
-            }
-
-            // Handle Tool Calls
-            if (msg.toolCall) {
-              for (const fc of msg.toolCall.functionCalls) {
-                console.log("Aura 2.0 Tool Call:", fc.name, fc.args);
-                
-                try {
-                  const result = await onToolCall(fc.name, fc.args);
-                  
-                  // Send tool response
-                  sessionRef.current?.sendToolResponse({
-                    functionResponses: [{
-                      id: fc.id,
-                      name: fc.name,
-                      response: { result: JSON.stringify(result || "OK") }
-                    }]
-                  });
-
-                  // Generate insight for certain tools
-                  if (fc.name === 'suggestImprovement') {
-                    const args = fc.args as any;
-                    const insight: AuraInsight = {
-                      id: `insight-${Date.now()}`,
-                      type: 'suggestion',
-                      title: `Improve ${args.area}`,
-                      content: args.suggestion,
-                      timestamp: Date.now(),
-                      actionable: {
-                        tool: 'applyMaskEdit',
-                        args: { 
-                          targetArea: args.area, 
-                          editInstruction: args.suggestion 
-                        },
-                        label: 'Apply This'
-                      }
-                    };
-                    onAuraInsight(insight);
-                    setAuraContext(prev => ({
-                      ...prev,
-                      insights: [...prev.insights.slice(-9), insight]
-                    }));
-                  }
-
-                  if (fc.name === 'analyzeCurrentDesign') {
-                    setAuraContext(prev => ({ 
-                      ...prev, 
-                      isAnalyzing: false,
-                      lastAnalysisTimestamp: Date.now()
-                    }));
-                  }
-
-                } catch (e) {
-                  console.error("Tool execution error", e);
-                  sessionRef.current?.sendToolResponse({
-                    functionResponses: [{
-                      id: fc.id,
-                      name: fc.name,
-                      response: { error: "Tool execution failed" }
-                    }]
-                  });
-                }
-              }
-            }
-            
-            // Handle turn completion
-            if (msg.serverContent?.turnComplete) {
-              setAuraContext(prev => ({ ...prev, isAnalyzing: false }));
-              
-              // Finalize transcript
-              const fullText = currentTranscriptRef.current;
-              if (fullText.trim()) {
-                onTranscriptUpdate('aura', fullText);
-                setTranscript(prev => [...prev, { 
-                  role: 'aura', 
-                  text: fullText, 
-                  timestamp: Date.now() 
-                }]);
-              }
-              currentTranscriptRef.current = ""; // Reset
-              
-              setIsListening(true);
-            }
-
-            // Handle Interruption
-            if (msg.serverContent?.interrupted) {
-              activeSourcesRef.current.forEach(s => {
-                try { s.stop(); } catch (e) {}
-              });
-              activeSourcesRef.current.clear();
-              nextStartTimeRef.current = 0;
-              currentTranscriptRef.current = ""; // Clear partial transcript
-              setIsSpeaking(false);
-              setIsListening(true);
-            }
-          },
-          
-          onclose: () => {
-            console.log("Aura 2.0 Disconnected");
-            setIsConnected(false);
-            setIsSpeaking(false);
-            setIsListening(false);
-          },
-          
-          onerror: (e) => {
-            console.error("Aura 2.0 Error", e);
-            setIsConnected(false);
-            setIsSpeaking(false);
-            setIsListening(false);
+          // Send initial canvas state if available
+          const currentCanvas = canvasImageGetterRef.current?.();
+          if (currentCanvas) {
+            setTimeout(() => {
+              sendCanvasUpdate(currentCanvas);
+            }, 1000);
           }
+        },
+        
+        onmessage: async (msg: LiveServerMessage) => {
+          // Handle Audio Output
+          const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+          
+          if (audioData && outputAudioContextRef.current) {
+            setIsSpeaking(true);
+            setIsListening(false);
+            
+            const buffer = await decodeAudioData(audioData, outputAudioContextRef.current);
+            
+            const source = outputAudioContextRef.current.createBufferSource();
+            source.buffer = buffer;
+            source.connect(outputAudioContextRef.current.destination);
+            
+            const now = outputAudioContextRef.current.currentTime;
+            const start = Math.max(now, nextStartTimeRef.current);
+            source.start(start);
+            nextStartTimeRef.current = start + buffer.duration;
+            
+            activeSourcesRef.current.add(source);
+            source.onended = () => {
+              activeSourcesRef.current.delete(source);
+              if (activeSourcesRef.current.size === 0) {
+                setIsSpeaking(false);
+                setIsListening(true);
+              }
+            };
+          }
+
+          // Handle Output Transcription
+          if (msg.serverContent?.outputTranscription) {
+              const text = msg.serverContent.outputTranscription.text;
+              if (text) {
+                  currentTranscriptRef.current += text;
+              }
+          }
+
+          // Handle Tool Calls
+          if (msg.toolCall) {
+            for (const fc of msg.toolCall.functionCalls) {
+              console.log("Aura 2.0 Tool Call:", fc.name, fc.args);
+              
+              try {
+                const result = await onToolCall(fc.name, fc.args);
+                
+                // Send tool response
+                sessionRef.current?.sendToolResponse({
+                  functionResponses: [{
+                    id: fc.id,
+                    name: fc.name,
+                    response: { result: JSON.stringify(result || "OK") }
+                  }]
+                });
+
+                // Generate insight for certain tools
+                if (fc.name === 'suggestImprovement') {
+                  const args = fc.args as any;
+                  const insight: AuraInsight = {
+                    id: `insight-${Date.now()}`,
+                    type: 'suggestion',
+                    title: `Improve ${args.area}`,
+                    content: args.suggestion,
+                    timestamp: Date.now(),
+                    actionable: {
+                      tool: 'applyMaskEdit',
+                      args: { 
+                        targetArea: args.area, 
+                        editInstruction: args.suggestion 
+                      },
+                      label: 'Apply This'
+                    }
+                  };
+                  onAuraInsight(insight);
+                  setAuraContext(prev => ({
+                    ...prev,
+                    insights: [...prev.insights.slice(-9), insight]
+                  }));
+                }
+
+                if (fc.name === 'analyzeCurrentDesign') {
+                  setAuraContext(prev => ({ 
+                    ...prev, 
+                    isAnalyzing: false,
+                    lastAnalysisTimestamp: Date.now()
+                  }));
+                }
+
+              } catch (e) {
+                console.error("Tool execution error", e);
+                sessionRef.current?.sendToolResponse({
+                  functionResponses: [{
+                    id: fc.id,
+                    name: fc.name,
+                    response: { error: "Tool execution failed" }
+                  }]
+                });
+              }
+            }
+          }
+          
+          // Handle turn completion
+          if (msg.serverContent?.turnComplete) {
+            setAuraContext(prev => ({ ...prev, isAnalyzing: false }));
+            
+            // Finalize transcript
+            const fullText = currentTranscriptRef.current;
+            if (fullText.trim()) {
+              onTranscriptUpdate('aura', fullText);
+              setTranscript(prev => [...prev, { 
+                role: 'aura', 
+                text: fullText, 
+                timestamp: Date.now() 
+              }]);
+            }
+            currentTranscriptRef.current = ""; // Reset
+            
+            setIsListening(true);
+          }
+
+          // Handle Interruption
+          if (msg.serverContent?.interrupted) {
+            activeSourcesRef.current.forEach(s => {
+              try { s.stop(); } catch (e) {}
+            });
+            activeSourcesRef.current.clear();
+            nextStartTimeRef.current = 0;
+            currentTranscriptRef.current = ""; // Clear partial transcript
+            setIsSpeaking(false);
+            setIsListening(true);
+          }
+        },
+        
+        onclose: () => {
+          console.log("Aura 2.0 Disconnected");
+          setIsConnected(false);
+          setIsSpeaking(false);
+          setIsListening(false);
+        },
+        
+        onerror: (e) => {
+          console.error("Aura 2.0 Error", e);
+          setIsConnected(false);
+          setIsSpeaking(false);
+          setIsListening(false);
         }
-      });
+      };
+
+      // Connect with fallback mechanism
+      let session;
+      try {
+        session = await ai.live.connect({
+          model: LIVE_MODEL_ID,
+          config: liveConfig,
+          callbacks: callbacks
+        });
+      } catch (e) {
+        console.warn(`[Aura] Connection to ${LIVE_MODEL_ID} failed, falling back to ${FALLBACK_MODEL_ID}`, e);
+        session = await ai.live.connect({
+          model: FALLBACK_MODEL_ID,
+          config: liveConfig,
+          callbacks: callbacks
+        });
+      }
       
       sessionRef.current = session;
 

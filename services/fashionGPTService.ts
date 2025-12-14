@@ -111,14 +111,11 @@ Return ONLY the prompt text, no explanations.`
 // ============================================
 
 export const findSupplierRecommendations = async (materials: string[]): Promise<SupplierRecommendation[]> => {
-  const recommendations: SupplierRecommendation[] = [];
-  
-  // Process top 3 materials to avoid rate limits
-  for (const material of materials.slice(0, 3)) {
+  // Parallelize supplier search for faster rendering
+  const promises = materials.slice(0, 3).map(async (material) => {
     try {
       const { text, links } = await findMaterialSources(material);
       
-      // Parse the response into structured format
       const ai = getAiClient();
       const parseResponse = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
@@ -156,23 +153,23 @@ Return JSON with suppliers array.`,
       
       const parsed = JSON.parse(parseResponse.text || '{"suppliers":[]}');
       
-      recommendations.push({
+      return {
         material,
         suppliers: parsed.suppliers.map((s: any, idx: number) => ({
           ...s,
           url: links[idx]?.uri
         }))
-      });
+      };
     } catch (e) {
       console.error(`Failed to find suppliers for ${material}`, e);
-      recommendations.push({
+      return {
         material,
         suppliers: []
-      });
+      };
     }
-  }
-  
-  return recommendations;
+  });
+
+  return Promise.all(promises);
 };
 
 // ============================================
@@ -249,6 +246,8 @@ export const runFashionGPTPipeline = async (
   let output: ProductionReadyPack | null = null;
 
   try {
+    // SEQUENTIAL STAGES (Dependencies exist)
+    
     // STAGE 1: Design Brief
     updateStage('brief', { status: 'in-progress', progress: 10, startTime: Date.now() });
     const designBrief = await generateDesignBrief(input);
@@ -287,47 +286,56 @@ export const runFashionGPTPipeline = async (
 
     updateStage('engineering', { status: 'completed', progress: 100, result: '(tech pack generated)', endTime: Date.now() });
 
-    // STAGE 5: Sizing Chart
-    updateStage('sizing', { status: 'in-progress', progress: 10, startTime: Date.now() });
-    const sizingChart = await generateSizingChart(designBrief.garmentType + ' ' + designBrief.constructionNotes);
-    updateStage('sizing', { status: 'completed', progress: 100, result: sizingChart, endTime: Date.now() });
+    // PARALLEL STAGES (Independent of each other, depend on results above)
+    // Running these concurrently drastically improves rendering speed of the final output.
 
-    // STAGE 6: Cost Analysis
-    updateStage('costing', { status: 'in-progress', progress: 10, startTime: Date.now() });
-    const costData = await estimateProductionCosts(bomMarkdown);
-    const suggestedRetailPrice = Math.ceil(costData.total * 4); // ~4x markup
-    const wholesalePrice = Math.ceil(costData.total * 2.2); // ~2.2x markup
-    const profitMargin =
-      suggestedRetailPrice > 0
-        ? ((suggestedRetailPrice - costData.total) / suggestedRetailPrice) * 100
-        : 0;
-    const costBreakdown = {
-      ...costData,
-      margin: {
-        suggestedRetailPrice,
-        wholesalePrice,
-        profitMargin,
-      },
-    };
-    updateStage('costing', { status: 'completed', progress: 100, result: costBreakdown, endTime: Date.now() });
+    const pSizing = (async () => {
+        updateStage('sizing', { status: 'in-progress', progress: 10, startTime: Date.now() });
+        const res = await generateSizingChart(designBrief.garmentType + ' ' + designBrief.constructionNotes);
+        updateStage('sizing', { status: 'completed', progress: 100, result: res, endTime: Date.now() });
+        return res;
+    })();
 
-    // STAGE 7: Manufacturing Feasibility
-    updateStage('manufacturing', { status: 'in-progress', progress: 10, startTime: Date.now() });
-    let manufacturingAnalysis: ManufacturingAnalysis = { feasibilityScore: 75, costRating: 'Medium', productionRisks: [], manufacturingSuggestions: [] };
-    if (cadImage) {
-      manufacturingAnalysis = await analyzeManufacturingFeasibility(cadImage, bomMarkdown);
-    }
-    updateStage('manufacturing', { status: 'completed', progress: 100, result: manufacturingAnalysis, endTime: Date.now() });
+    const pCosting = (async () => {
+        updateStage('costing', { status: 'in-progress', progress: 10, startTime: Date.now() });
+        const costData = await estimateProductionCosts(bomMarkdown);
+        const suggestedRetailPrice = Math.ceil(costData.total * 4); // ~4x markup
+        const wholesalePrice = Math.ceil(costData.total * 2.2); // ~2.2x markup
+        const profitMargin = suggestedRetailPrice > 0
+            ? ((suggestedRetailPrice - costData.total) / suggestedRetailPrice) * 100
+            : 0;
+        const res = { ...costData, margin: { suggestedRetailPrice, wholesalePrice, profitMargin } };
+        updateStage('costing', { status: 'completed', progress: 100, result: res, endTime: Date.now() });
+        return res;
+    })();
 
-    // STAGE 8: Supplier Sourcing
-    updateStage('sourcing', { status: 'in-progress', progress: 10, startTime: Date.now() });
-    const supplierRecommendations = await findSupplierRecommendations(designBrief.fabricSuggestions);
-    updateStage('sourcing', { status: 'completed', progress: 100, result: supplierRecommendations, endTime: Date.now() });
+    const pManufacturing = (async () => {
+        updateStage('manufacturing', { status: 'in-progress', progress: 10, startTime: Date.now() });
+        let res: ManufacturingAnalysis = { feasibilityScore: 75, costRating: 'Medium', productionRisks: [], manufacturingSuggestions: [] };
+        if (cadImage) {
+            res = await analyzeManufacturingFeasibility(cadImage, bomMarkdown);
+        }
+        updateStage('manufacturing', { status: 'completed', progress: 100, result: res, endTime: Date.now() });
+        return res;
+    })();
 
-    // STAGE 9: Production Timeline
-    updateStage('timeline', { status: 'in-progress', progress: 10, startTime: Date.now() });
-    const productionTimeline = await estimateProductionTimeline(bomMarkdown, input.productionScale || 'small-batch');
-    updateStage('timeline', { status: 'completed', progress: 100, result: productionTimeline, endTime: Date.now() });
+    const pSourcing = (async () => {
+        updateStage('sourcing', { status: 'in-progress', progress: 10, startTime: Date.now() });
+        const res = await findSupplierRecommendations(designBrief.fabricSuggestions);
+        updateStage('sourcing', { status: 'completed', progress: 100, result: res, endTime: Date.now() });
+        return res;
+    })();
+
+    const pTimeline = (async () => {
+        updateStage('timeline', { status: 'in-progress', progress: 10, startTime: Date.now() });
+        const res = await estimateProductionTimeline(bomMarkdown, input.productionScale || 'small-batch');
+        updateStage('timeline', { status: 'completed', progress: 100, result: res, endTime: Date.now() });
+        return res;
+    })();
+
+    // Await all parallel tasks
+    const [sizingChart, costBreakdown, manufacturingAnalysis, supplierRecommendations, productionTimeline] = 
+        await Promise.all([pSizing, pCosting, pManufacturing, pSourcing, pTimeline]);
 
     // Assemble final output
     output = {

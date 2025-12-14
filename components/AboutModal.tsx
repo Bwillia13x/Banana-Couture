@@ -58,19 +58,19 @@ export const AboutModal: React.FC<AboutModalProps> = ({ onClose }) => {
               <ul className="space-y-3">
                 <li className="flex justify-between items-center text-xs text-white/70">
                   <span>Logic & Reasoning</span>
-                  <span className="font-mono bg-white/10 px-2 py-0.5 rounded text-white">gemini-3-pro</span>
+                  <span className="font-mono bg-white/10 px-2 py-0.5 rounded text-white">gemini-3-pro-preview</span>
                 </li>
                 <li className="flex justify-between items-center text-xs text-white/70">
                   <span>Visual Generation</span>
-                  <span className="font-mono bg-white/10 px-2 py-0.5 rounded text-white">gemini-3-image</span>
+                  <span className="font-mono bg-white/10 px-2 py-0.5 rounded text-white">gemini-3-pro-image</span>
                 </li>
                 <li className="flex justify-between items-center text-xs text-white/70">
                   <span>Video Production</span>
-                  <span className="font-mono bg-white/10 px-2 py-0.5 rounded text-white">veo-3.1</span>
+                  <span className="font-mono bg-white/10 px-2 py-0.5 rounded text-white">veo-3.1-fast</span>
                 </li>
                 <li className="flex justify-between items-center text-xs text-white/70">
                   <span>Voice & Vision (Aura)</span>
-                  <span className="font-mono bg-white/10 px-2 py-0.5 rounded text-white">gemini-live-2.0</span>
+                  <span className="font-mono bg-white/10 px-2 py-0.5 rounded text-white">gemini-2.5-native-audio</span>
                 </li>
               </ul>
             </div>
